@@ -1,0 +1,139 @@
+---
+title: "Case Study"
+author: "Prakhar"
+date: "2023-05-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Installing Required Packages and setting directory}
+library(tidyverse)  #helps wrangle data
+library(lubridate)  #helps wrangle date attributes
+library(ggplot2)  #helps visualize data
+setwd("C:/Users/sriva/OneDrive/Desktop/COLLEGE/google data analytics/tab/Track 1") 
+```
+```{r Getting the data}
+df_2019_q1 <- read_csv("Divvy_Trips_2019_Q1.csv")
+df_2019_q2 <- read_csv("Divvy_Trips_2019_Q2.csv")
+df_2019_q3 <- read_csv("Divvy_Trips_2019_Q3.csv")
+df_2019_q4 <- read_csv("Divvy_Trips_2019_Q4.csv")
+
+```
+```{r Cleaning Variable Names}
+(df_2019_q2 <-  rename(df_2019_q2, 
+                    trip_id = "01 - Rental Details Rental ID"
+                   ,bikeid = "01 - Rental Details Bike ID"
+                   ,tripduration = "01 - Rental Details Duration In Seconds Uncapped"
+                   ,start_time = "01 - Rental Details Local Start Time"  
+                   ,end_time = "01 - Rental Details Local End Time"  
+                   ,from_station_name = "03 - Rental Start Station Name" 
+                   ,from_station_id = "03 - Rental Start Station ID"
+                   ,to_station_name = "02 - Rental End Station Name" 
+                   ,to_station_id = "02 - Rental End Station ID"
+                   ,usertype = "User Type"
+                   ,gender = "Member Gender"
+                   ,birthyear = "05 - Member Details Member Birthday Year" ))
+
+```
+
+```{r combine all data}
+all_data<- bind_rows(df_2019_q1,df_2019_q2,df_2019_q3,df_2019_q4)
+```
+
+```{r remove unnecessary}
+all_data<-all_data %>% 
+  select(-c(gender, birthyear )) %>% 
+  mutate(trip_id = as.character(trip_id), bikeid=as.character(bikeid), from_station_id = as.character(from_station_id), to_station_id = as.character(to_station_id))
+
+```
+
+```{r changing column name}
+all_data<- rename(all_data, member_casual = "usertype")
+```
+
+```{r reassigning values}
+# Reassign to the desired values 
+all_data <-  all_data %>% 
+  mutate(member_casual = recode(member_casual
+                           ,"Subscriber" = "member"
+                           ,"Customer" = "casual"))
+
+```
+
+```{r Add columns that list the date, month, day, and year }
+#Add columns that list the date, month, day, and year of each ride
+all_data$date <- as.Date(all_data$start_time) #The default format is yyyy-mm-dd
+all_data$month <- format(as.Date(all_data$date), "%m")
+all_data$day <- format(as.Date(all_data$date), "%d")
+all_data$year <- format(as.Date(all_data$date), "%Y")
+all_data$day_of_week <- format(as.Date(all_data$date), "%A")
+
+
+all_data$ride_length <- difftime(all_data$end_time,all_data$start_time)
+```
+
+```{r changing data type}
+all_data$ride_length <- as.numeric(as.character(all_data$ride_length))
+is.numeric(all_data$ride_length)
+```
+```{r removing wrong data}
+all_data <- all_data[!(all_data$ride_length<0),]
+```
+
+
+```{r comparing casual and member users}
+aggregate(all_data$ride_length ~ all_data$member_casual, FUN = mean)
+aggregate(all_data$ride_length ~ all_data$member_casual, FUN = median)
+aggregate(all_data$ride_length ~ all_data$member_casual, FUN = max)
+aggregate(all_data$ride_length ~ all_data$member_casual, FUN = min)
+
+```
+
+```{r fix days of week}
+all_data$day_of_week <- ordered(all_data$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+```
+
+```{r analyze ridership data by type and weekday}
+
+aggregate(all_data$ride_length ~ all_data$member_casual + all_data$day_of_week, FUN = mean)
+```
+```{r}
+# analyze ridership data by type and weekday
+all_data %>% 
+  mutate(weekday = wday(start_time, label = TRUE)) %>%  #creates weekday field using wday()
+  group_by(member_casual, weekday) %>%  #groups by usertype and weekday
+  summarise(number_of_rides = n()							#calculates the number of rides and average duration 
+  ,average_duration = mean(ride_length)) %>% 		# calculates the average duration
+  arrange(member_casual, weekday)	
+
+```
+
+```{r visualize number of rides}
+# Let's visualize the number of rides by rider type
+all_data %>% 
+  mutate(weekday = wday(start_time, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge")
+
+```
+
+```{r visualize average duration}
+# Let's create a visualization for average duration
+all_data %>% 
+  mutate(weekday = wday(start_time, label = TRUE)) %>% 
+  group_by(member_casual, weekday) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, weekday)  %>% 
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) +
+  geom_col(position = "dodge")
+
+```
+
